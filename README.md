@@ -10,9 +10,9 @@ Unit testing AWS interactions with pytest and moto. These examples demonstrate h
 
 [pytest](https://pypi.org/project/pytest/): unit testing framework and monkey patching functions and environment variables
 
-## Install Modules
+## Install Modules from Root Directory
 
-`pip install -r requirements.txt`
+`python3 -m pip install -r requirements.txt`
 
 ## Directory Structure
 
@@ -26,15 +26,21 @@ Run all tests
 
 `pytest`
 
-Run only one test
+Run only one test file
 
 `cd test` 
 
-`pytest [filename]`
+`pytest path/to/file`
+
+Useful flags
+
+`-s` writes all standard output to console. By default, standard output is only written for test cases that fail.
+
+`-k "test_function_name"` only runs the test case named test_function_name.
 
 ## Region
 
-By default, the region needs to be us-east-1. The environment variables are already mocked for this in the test file. 
+By default, the AWS region needs to be us-east-1. The environment variables are already mocked for this in the test files. 
 
 ## Logging
 

@@ -54,18 +54,18 @@ def teardown_module(module):
 
 # cleanup all objects and buckets
 def s3_delete_all(s3_client, bucket_name):
-    objects = s3_client.list_objects_v2(Bucket=bucket_name)
-    if 'Contents' in objects:
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    if 'Contents' in response:
         # must delete all objects before deleting bucket
-        for object in objects['Contents']:
-            s3_client.delete_object(Bucket=bucket_name, Key=object['Key'])
+        for o in response['Contents']:
+            s3_client.delete_object(Bucket=bucket_name, Key=o['Key'])
     boto3.resource('s3').Bucket(bucket_name).delete()
 
-'''mock the environment before importing by using a fixture. otherwise 
-import errors will occur. refer to pytest documentation to change the 
-scope of the fixture'''
+'''Mock the AWS services and environment variables before importing the module. 
+Use a fixture to control the import. Otherwise import errors will occur. refer 
+to the pytest documentation to change the scope of the fixture'''
 @pytest.fixture()
-def mocked_lambda_function():
+def lambda_module():
     yield import_module('lambda_function')
 
 @pytest.fixture()
@@ -75,6 +75,7 @@ def s3_fixture():
         logger.debug('Setup s3 bucket')
         s3_client = boto3.client('s3')
         s3_client.create_bucket(Bucket=bucket_name)
+        # pass the client to the test case
         yield s3_client
         # do all teardown here
         s3_delete_all(s3_client, bucket_name)
@@ -101,10 +102,10 @@ def ssm_fixture():
         ssm_client.delete_parameters(Names=[access_key, secret_key])
         
 class TestConstructFilePath:
-    # import the mocked_lambda_function last because it depends on the other fixtures
-    def test_empty_fn(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    # import the lambda_module last because it depends on the other fixtures
+    def test_empty_fn(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing empty file name')
-        result = mocked_lambda_function.construct_file_path('')
+        result = lambda_module.construct_file_path('')
         today = date.today().strftime('%Y/%m/%d')
         # regex for multiple characters for uuid wildcard
         expected = os.path.join(today, '.+', '')
@@ -114,10 +115,10 @@ class TestConstructFilePath:
         logger.debug('Expected: {}'.format(expected))
         assert match
 
-    def test_path_constructed(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_path_constructed(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing file path constructed')
         file_name = 'my-file-name'
-        result = mocked_lambda_function.construct_file_path(file_name)
+        result = lambda_module.construct_file_path(file_name)
         today = date.today().strftime('%Y/%m/%d')
         # regex for multiple characters for uuid wildcard
         expected = os.path.join(today, '.+', file_name)
@@ -128,52 +129,52 @@ class TestConstructFilePath:
         assert match
 
 class TestConstructJson:
-    def test_count_not_in_body(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_count_not_in_body(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing count not in body')
         body = {}
-        id = str(uuid.uuid1())
-        result = mocked_lambda_function.construct_json(body, id)
+        file_id = str(uuid.uuid1())
+        result = lambda_module.construct_json(body, file_id)
         expected = json.dumps({
-            'id': id,
+            'id': file_id,
             'count': 10
         })
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
         assert result == expected
 
-    def test_count_int_in_body(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_count_int_in_body(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing count (int) in body')
         body = {'id': 'temp', 'count': 7}
-        id = str(uuid.uuid1())
-        result = mocked_lambda_function.construct_json(body, id)
+        file_id = str(uuid.uuid1())
+        result = lambda_module.construct_json(body, file_id)
         expected = json.dumps({
-            'id': id,
+            'id': file_id,
             'count': 17
         })
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
         assert result == expected
 
-    def test_count_double_in_body(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_count_double_in_body(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing count invalid type (double) in body')
         body = {'id': 'temp', 'count': 9.9}
-        id = str(uuid.uuid1())
-        result = mocked_lambda_function.construct_json(body, id)
+        file_id = str(uuid.uuid1())
+        result = lambda_module.construct_json(body, file_id)
         expected = json.dumps({
-            'id': id,
+            'id': file_id,
             'count': 10
         })
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
         assert result == expected
 
-    def test_count_str_in_body(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_count_str_in_body(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing count invalid type (str) in body')
         body = {'id': 'temp', 'count': ''}
-        id = str(uuid.uuid1())
-        result = mocked_lambda_function.construct_json(body, id)
+        file_id = str(uuid.uuid1())
+        result = lambda_module.construct_json(body, file_id)
         expected = json.dumps({
-            'id': id,
+            'id': file_id,
             'count': 10
         })
         logger.debug('Result: {}'.format(result))
@@ -188,8 +189,8 @@ class TestLambdaHandler:
             assert len(objects_list) == len(expected_list)
 
         for i in range(len(objects_list)):
-            object = s3_client.get_object(Bucket=bucket_name, Key=objects_list[i]['Key'])
-            body = json.loads(object['Body'].read())
+            response = s3_client.get_object(Bucket=bucket_name, Key=objects_list[i]['Key'])
+            body = json.loads(response['Body'].read())
             expected = expected_list[i]
             assert 'id' in body
             del body['id']
@@ -198,14 +199,14 @@ class TestLambdaHandler:
             logger.debug('Expected: {}'.format(expected))
             assert body == expected
 
-    def test_no_files(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_no_files(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing no files passed in')
         event = {
             'files': []
         }
         context = {}
 
-        result = json.loads(mocked_lambda_function.lambda_handler(event, context)['files'])
+        result = json.loads(lambda_module.lambda_handler(event, context)['files'])
         expected = []
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
@@ -218,7 +219,7 @@ class TestLambdaHandler:
         logger.debug('Expected: {}'.format(expected))
         assert result == expected        
 
-    def test_one_file(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_one_file(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing one file passed in')
         body = {'creationTime': time.time(), 'description': 'test', 'success': True}
         event = {
@@ -227,7 +228,7 @@ class TestLambdaHandler:
             ]
         }
         context = {}
-        result = json.loads(mocked_lambda_function.lambda_handler(event, context)['files'])
+        result = json.loads(lambda_module.lambda_handler(event, context)['files'])
         expected = ['file-1']
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
@@ -247,7 +248,7 @@ class TestLambdaHandler:
         expected_list = [body]
         self.verify_body_in_s3(s3_fixture, objects_list['Contents'], expected_list)
         
-    def test_multiple_files(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_multiple_files(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing multiple files passed in')
         body1 = {'creationTime': time.time(), 'description': 'test', 'success': True}
         body2 = {'count': 20, 'creationTime': time.time(), 'description': 'dev', 'success': False}
@@ -260,7 +261,7 @@ class TestLambdaHandler:
             ]
         }
         context = {}
-        result = json.loads(mocked_lambda_function.lambda_handler(event, context)['files'])
+        result = json.loads(lambda_module.lambda_handler(event, context)['files'])
         expected = ['file-1', 'file-2', 'file-3']
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
@@ -282,7 +283,7 @@ class TestLambdaHandler:
         expected_list = [body1, body2, body3]
         self.verify_body_in_s3(s3_fixture, objects_list['Contents'], expected_list)
 
-    def test_files_not_uploaded(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_files_not_uploaded(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing multiple files passed in but not uploaded')
         event = {
             'files': [
@@ -292,7 +293,7 @@ class TestLambdaHandler:
             ]
         }
         context = {}
-        result = json.loads(mocked_lambda_function.lambda_handler(event, context)['files'])
+        result = json.loads(lambda_module.lambda_handler(event, context)['files'])
         expected = []
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
@@ -305,7 +306,7 @@ class TestLambdaHandler:
         logger.debug('Expected: {}'.format(expected))
         assert result == expected
  
-    def test_files_some_not_uploaded(self, s3_fixture, ssm_fixture, mocked_lambda_function):
+    def test_files_some_not_uploaded(self, s3_fixture, ssm_fixture, lambda_module):
         logger.debug('Testing multiple files passed in but some not uploaded')
         body = {'creationTime': time.time(), 'description': 'dev', 'success': False}
         event = {
@@ -316,7 +317,7 @@ class TestLambdaHandler:
             ]
         }
         context = {}
-        result = json.loads(mocked_lambda_function.lambda_handler(event, context)['files'])
+        result = json.loads(lambda_module.lambda_handler(event, context)['files'])
         expected = ['file-2']
         logger.debug('Result: {}'.format(result))
         logger.debug('Expected: {}'.format(expected))
