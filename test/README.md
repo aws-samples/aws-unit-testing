@@ -47,3 +47,7 @@ A quick guide for what each test example contains.
 - Mocking environment variables and some AWS services.
 - Testing logic for lambda_handler and helper functions.
 
+## [test_lambda_function_context.py](test_lambda_function_context.py)
+
+- Mocking Lambda context properties and methods.
+- For the full list of context properties and methods, visit [https://docs.aws.amazon.com/lambda/latest/dg/python-context.html](https://docs.aws.amazon.com/lambda/latest/dg/python-context.html)
