@@ -1,6 +1,10 @@
 ## Unit Testing Interactions with Amazon Web Services (AWS) 
 
-Unit testing AWS interactions with pytest and moto. These examples demonstrate how to structure, setup, teardown, mock, and conduct unit testing. The source code is only intended to demonstrate unit testing.
+Unit testing AWS interactions with pytest and moto. The examples demonstrate how to structure, setup, teardown, mock, and conduct unit testing. These concepts can be applied to general code and are not restricted to AWS interactions. The source code is only intended to demonstrate unit testing. 
+
+## [Testing Guide](test/README.md)
+
+A quick guide for what each test example contains is located in the test folder.
 
 ## Python Modules Used
 

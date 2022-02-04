@@ -62,7 +62,7 @@ def s3_delete_all(s3_client, bucket_name):
     boto3.resource('s3').Bucket(bucket_name).delete()
 
 '''Mock the AWS services and environment variables before importing the module. 
-Use a fixture to control the import. Otherwise import errors will occur. refer 
+Use a fixture to control the import. Otherwise import errors will occur. Refer 
 to the pytest documentation to change the scope of the fixture'''
 @pytest.fixture()
 def catch_errors_module():
